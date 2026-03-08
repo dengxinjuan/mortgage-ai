@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import Vapi from '@vapi-ai/web'
 
-const VAPI_PUBLIC_KEY   = import.meta.env.VITE_VAPI_PUBLIC_KEY   || ''
-const RATE_AGENT_ID     = import.meta.env.VITE_VAPI_RATE_AGENT_ID    || ''
-const SUPPORT_AGENT_ID  = import.meta.env.VITE_VAPI_SUPPORT_AGENT_ID || ''
+const VAPI_PUBLIC_KEY       = import.meta.env.VITE_VAPI_PUBLIC_KEY          || ''
+const RATE_AGENT_ID         = import.meta.env.VITE_VAPI_RATE_AGENT_ID         || ''
+const EDUCATIONAL_AGENT_ID  = import.meta.env.VITE_VAPI_EDUCATIONAL_AGENT_ID  || ''
+const FOLLOWUP_AGENT_ID     = import.meta.env.VITE_VAPI_FOLLOWUP_AGENT_ID     || ''
+const SQUAD_ID              = import.meta.env.VITE_VAPI_SQUAD_ID               || ''
 
 const LOAN_TYPE_LABELS = {
   '30yr-fixed': '30-Year Fixed',
@@ -29,6 +31,11 @@ export default function VoicePage({ userData, onBack }) {
   const [transcript, setTranscript]       = useState([])
   const [activeAgent, setActiveAgent]     = useState('rate')
   const [callError, setCallError]         = useState('')
+  const [showFollowUp, setShowFollowUp]   = useState(false)
+  const [phoneNumber, setPhoneNumber]     = useState('+1')
+  const [callRequested, setCallRequested] = useState(false) // 'idle' | 'sending' | 'sent' | 'error'
+  const [callReqStatus, setCallReqStatus] = useState('idle')
+  const [callReqError, setCallReqError]   = useState('')
 
   // Init Vapi once
   useEffect(() => {
@@ -37,7 +44,11 @@ export default function VoicePage({ userData, onBack }) {
     vapiRef.current = vapi
 
     vapi.on('call-start',   () => setCallStatus('active'))
-    vapi.on('call-end',     () => { setCallStatus('ended'); setIsSpeaking(false) })
+    vapi.on('call-end',     () => {
+      setCallStatus('ended')
+      setIsSpeaking(false)
+      setShowFollowUp(true)
+    })
     vapi.on('speech-start', () => setIsSpeaking(true))
     vapi.on('speech-end',   () => setIsSpeaking(false))
     vapi.on('error',        (e) => {
@@ -51,6 +62,12 @@ export default function VoicePage({ userData, onBack }) {
         const entry = { role: msg.role, text: msg.transcript, id: Date.now() }
         setTranscript(prev => [...prev, entry])
         if (msg.role === 'assistant') setLatestLine(msg.transcript)
+      }
+
+      if (msg.type === 'assistant.started') {
+        const id = msg.newAssistant?.id || ''
+        if (id === RATE_AGENT_ID)        setActiveAgent('rate')
+        if (id === EDUCATIONAL_AGENT_ID) setActiveAgent('educational')
       }
     })
 
@@ -68,26 +85,28 @@ export default function VoicePage({ userData, onBack }) {
     setCallError('')
     setTranscript([])
     setLatestLine('')
+    setShowFollowUp(false)
+    setPhoneNumber('+1')
+    setCallReqStatus('idle')
+    setActiveAgent('rate')
 
-    const agentId = activeAgent === 'rate' ? RATE_AGENT_ID : SUPPORT_AGENT_ID
-    const loanFmt = userData?.loan ? `$${(+userData.loan).toLocaleString()}` : 'your loan'
-    const downPct = userData?.loan && userData?.down
-      ? Math.round((userData.down / userData.loan) * 100) + '% down'
-      : ''
     const creditLabel = CREDIT_LABELS[userData?.creditScore] || ''
 
-    vapiRef.current.start(agentId, {
-      firstMessage: `Hi ${userData?.name || 'there'}! Based on your profile — ${loanFmt}, ${downPct}, ${creditLabel} credit — your estimated rate is ${userData?.rate}%. Want me to walk you through your options?`,
-      variableValues: {
-        userName:       userData?.name || '',
-        loanAmount:     userData?.loan || 0,
-        downPayment:    userData?.down || 0,
-        rate:           userData?.rate || 0,
-        monthlyPayment: userData?.monthly || 0,
-        loanType:       LOAN_TYPE_LABELS[userData?.loanType] || '',
-        creditScore:    creditLabel,
+    vapiRef.current.start(
+      undefined,
+      {
+        variableValues: {
+          name:           userData?.name || '',
+          loanAmount:     userData?.loan || 0,
+          downPayment:    userData?.down || 0,
+          rate:           userData?.rate || 0,
+          monthlyPayment: userData?.monthly || 0,
+          loanType:       LOAN_TYPE_LABELS[userData?.loanType] || '',
+          creditScore:    creditLabel,
+        },
       },
-    })
+      SQUAD_ID,
+    )
   }
 
   function endCall() {
@@ -103,12 +122,35 @@ export default function VoicePage({ userData, onBack }) {
     setIsMuted(next)
   }
 
-  function switchAgent(agent) {
-    if (callStatus === 'active') endCall()
-    setActiveAgent(agent)
-    setCallStatus('idle')
-    setTranscript([])
-    setLatestLine('')
+  async function requestFollowUpCall() {
+    if (!phoneNumber.trim() || phoneNumber.trim() === '+1') return
+    setCallReqStatus('sending')
+    setCallReqError('')
+    try {
+      const res = await fetch('/api/start-call', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phoneNumber:    phoneNumber.trim(),
+          name:           userData?.name,
+          loanAmount:     userData?.loan,
+          downPayment:    userData?.down,
+          loanType:       LOAN_TYPE_LABELS[userData?.loanType] || '',
+          creditScore:    CREDIT_LABELS[userData?.creditScore] || '',
+          rate:           userData?.rate,
+          monthlyPayment: userData?.monthly,
+        }),
+      })
+      const text = await res.text()
+      let data
+      try { data = JSON.parse(text) } catch { throw new Error('Server not reachable — is the backend running? (cd server && node server.js)') }
+      if (!res.ok) throw new Error(data.error || 'Request failed')
+      setCallReqStatus('sent')
+    } catch (err) {
+      console.error('Follow-up call error:', err)
+      setCallReqError(err.message || 'Unknown error')
+      setCallReqStatus('error')
+    }
   }
 
   const statusLabel = {
@@ -187,6 +229,48 @@ export default function VoicePage({ userData, onBack }) {
             </div>
           )}
 
+          {showFollowUp && callStatus === 'ended' && (
+            <div className="followup-card">
+              <p className="followup-card-title">Want a Follow-up Call?</p>
+              <p className="followup-card-sub">
+                Enter your phone number and our Follow-up Agent will call you directly to answer any remaining questions.
+              </p>
+
+              {callReqStatus === 'sent' ? (
+                <p className="followup-success">
+                  Call on its way! Our agent will ring you shortly.
+                </p>
+              ) : (
+                <>
+                  <div className="followup-input-row">
+                    <input
+                      className="followup-phone-input"
+                      type="tel"
+                      placeholder="+1 (555) 000-0000"
+                      value={phoneNumber}
+                      onChange={e => setPhoneNumber(e.target.value)}
+                      disabled={callReqStatus === 'sending'}
+                    />
+                    <button
+                      className="btn-followup-call"
+                      onClick={requestFollowUpCall}
+                      disabled={!phoneNumber.trim() || phoneNumber.trim() === '+1' || callReqStatus === 'sending'}
+                    >
+                      {callReqStatus === 'sending' ? 'Calling…' : 'Call Me'}
+                    </button>
+                  </div>
+                  {callReqStatus === 'error' && (
+                    <p className="followup-error">{callReqError || 'Something went wrong — please try again.'}</p>
+                  )}
+                </>
+              )}
+
+              <button className="followup-dismiss" onClick={() => setShowFollowUp(false)}>
+                No thanks
+              </button>
+            </div>
+          )}
+
           {/* Orb */}
           <div className="orb-wrapper">
             <div className="orb-ring" />
@@ -216,7 +300,7 @@ export default function VoicePage({ userData, onBack }) {
                   {callStatus === 'idle'    ? 'AI response will appear here…'  : ''}
                   {callStatus === 'connecting' ? 'Connecting to AI advisor…'    : ''}
                   {callStatus === 'active'  ? 'Listening…'                      : ''}
-                  {callStatus === 'ended'   ? 'Call ended. Start a new call to continue.' : ''}
+                  {callStatus === 'ended' && !showFollowUp ? 'Call ended. Start a new call to continue.' : ''}
                 </p>
             }
           </div>
@@ -261,9 +345,9 @@ export default function VoicePage({ userData, onBack }) {
             </p>
           )}
 
-          {!VAPI_PUBLIC_KEY && (
+          {(!VAPI_PUBLIC_KEY || !SQUAD_ID) && (
             <p style={{ color: '#e87878', fontSize: '0.78rem', textAlign: 'center', maxWidth: '340px' }}>
-              Add <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '4px' }}>VITE_VAPI_PUBLIC_KEY</code> and <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '4px' }}>VITE_VAPI_RATE_AGENT_ID</code> to your <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '4px' }}>.env</code> file to enable the AI voice call.
+              Add <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '4px' }}>VITE_VAPI_PUBLIC_KEY</code> and <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '4px' }}>VITE_VAPI_SQUAD_ID</code> to your <code style={{ background: 'rgba(255,255,255,0.06)', padding: '1px 5px', borderRadius: '4px' }}>.env</code> file to enable the AI voice call.
             </p>
           )}
         </main>
@@ -274,21 +358,37 @@ export default function VoicePage({ userData, onBack }) {
             <p className="sidebar-section-title">Agent</p>
             <div className="agent-switch">
               {[
-                { id: 'rate',    icon: '📊', name: 'Rate Advisor',  desc: 'Explains rates & options' },
-                { id: 'support', icon: '💬', name: 'Support Agent', desc: 'Follow-up questions'      },
+                { id: 'rate',        icon: '📊', name: 'Rate Advisor',       desc: 'Explains rates & options'   },
+                { id: 'educational', icon: '🎓', name: 'Educational Agent', desc: 'General mortgage concepts' },
               ].map(a => (
-                <button
+                <div
                   key={a.id}
                   className={`agent-btn ${activeAgent === a.id ? 'active' : 'inactive'}`}
-                  onClick={() => switchAgent(a.id)}
                 >
                   <div className="agent-btn-icon">{a.icon}</div>
                   <div>
                     <p className="agent-btn-name">{a.name}</p>
-                    <p className="agent-btn-desc">{a.desc}</p>
+                    <p className="agent-btn-desc">
+                      {activeAgent === a.id && callStatus === 'active'
+                        ? 'Currently speaking'
+                        : a.desc}
+                    </p>
                   </div>
-                </button>
+                </div>
               ))}
+
+              {/* Follow-up Agent — outbound phone, shown as separate indicator */}
+              <div className={`agent-btn ${callStatus === 'ended' && showFollowUp ? 'active' : 'inactive'}`}>
+                <div className="agent-btn-icon">📞</div>
+                <div>
+                  <p className="agent-btn-name">Follow-up Agent</p>
+                  <p className="agent-btn-desc">
+                    {callStatus === 'ended' && showFollowUp
+                      ? 'Ready — calls your phone'
+                      : 'Calls you after session'}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 

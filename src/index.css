@@ -833,3 +833,86 @@ body {
   margin-bottom: 8px;
 }
 .start-prompt-sub { color: #7a8899; font-size: 0.9rem; }
+
+/* ── Follow-up card ─────────────────────────────────────── */
+.followup-card {
+  background: rgba(201,168,76,0.06);
+  border: 1px solid rgba(201,168,76,0.35);
+  border-radius: 20px;
+  padding: 28px 32px;
+  max-width: 440px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+}
+.followup-card-title {
+  font-family: 'Playfair Display', serif;
+  font-size: 1.15rem;
+  color: #e8c97a;
+}
+.followup-card-sub {
+  color: #7a8899;
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+.followup-input-row {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+.followup-phone-input {
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: #e8e8e8;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.followup-phone-input:focus  { border-color: #c9a84c; }
+.followup-phone-input::placeholder { color: #4a5568; }
+.btn-followup-call {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #c9a84c, #e8c97a);
+  color: #0d1b2a;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s, transform 0.1s;
+}
+.btn-followup-call:hover   { opacity: 0.88; }
+.btn-followup-call:active  { transform: scale(0.97); }
+.btn-followup-call:disabled { opacity: 0.4; cursor: not-allowed; }
+.followup-success {
+  color: #4ade80;
+  font-size: 0.88rem;
+  background: rgba(74,222,128,0.08);
+  border: 1px solid rgba(74,222,128,0.2);
+  border-radius: 10px;
+  padding: 10px 16px;
+  width: 100%;
+}
+.followup-error {
+  color: #f87171;
+  font-size: 0.8rem;
+}
+.followup-dismiss {
+  background: none;
+  border: none;
+  color: #4a5568;
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+}
+.followup-dismiss:hover { color: #7a8899; }

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 
 const INITIAL = {
-  name: '', email: '',
-  loanAmount: '', downPayment: '',
+  name: 'John Smith',
+  email: 'john@example.com',
+  loanAmount: '450000',
+  downPayment: '90000',
   loanType: '30yr-fixed',
   creditScore: 'excellent',
   propertyType: 'single-family',

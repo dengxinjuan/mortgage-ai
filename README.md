@@ -1,17 +1,18 @@
 # Mortgage AI
 
-An AI-powered mortgage advisor web app. Users fill out a mortgage inquiry form, get an instant rate estimate, and are connected to a live Vapi AI voice agent pre-loaded with their profile data.
+An AI-powered mortgage advisor web app. Users fill out a mortgage inquiry form, get an instant rate estimate, then speak with a Vapi AI voice agent pre-loaded with their profile data. Automatic multi-agent handoffs are handled via Vapi Squads.
 
 ---
 
 ## Features
 
-- **Mortgage Form** — collects loan amount, down payment, loan type, credit score, property type, name and email
-- **Rate Calculation** — Node.js backend calculates a personalized rate with adjustments for credit score, loan type, and property type
+- **Mortgage Form** — collects loan amount, down payment, loan type, credit score, property type, name and email. Pre-filled with test defaults for quick dev iteration
+- **Rate Calculation** — Node.js backend calculates a personalised rate with adjustments for credit score, loan type, and property type
 - **Voice AI Page** — glowing gold orb, animated waveform, live transcript bubble, and full Vapi voice call integration
-- **Live Transcript Log** — scrollable transcript of the full conversation
-- **Agent Switcher** — toggle between Rate Advisor and Support Agent mid-session
-- **Luxury UI** — dark navy + gold design with Playfair Display and DM Sans fonts
+- **Multi-Agent Squads** — Rate Inquiry Agent automatically hands off to Educational Agent when the user asks general mortgage concepts (LTV, APR, PMI, etc.), then transfers back
+- **Live Transcript Log** — scrollable transcript of the full conversation with active agent indicator
+- **Follow-up Outbound Call** — after the session ends, user enters their phone number and the Follow-up Agent calls them immediately
+- **Luxury UI** — dark navy + gold design with Playfair Display and DM Sans fonts, custom favicon
 
 ---
 
@@ -21,7 +22,7 @@ An AI-powered mortgage advisor web app. Users fill out a mortgage inquiry form, 
 |---|---|
 | Frontend | React + Vite |
 | Backend | Node.js + Express |
-| AI Voice | Vapi |
+| AI Voice | Vapi (Squads) |
 | Styling | Plain CSS (custom design system) |
 
 ---
@@ -33,71 +34,83 @@ Mortgage-AI/
 ├── src/
 │   ├── components/
 │   │   ├── MortgageForm.jsx   # Page 1 — form + rate result card
-│   │   └── VoicePage.jsx      # Page 2 — voice call interface
-│   ├── App.jsx                # Root component, manages form/chat state
+│   │   └── VoicePage.jsx      # Page 2 — voice call interface + follow-up card
+│   ├── App.jsx                # Root component, manages form/voice state
 │   ├── index.css              # Full design system (navy/gold theme)
 │   └── main.jsx
 ├── server/
-│   └── server.js              # Express API — POST /api/calculate-rate
-├── .env.example               # Environment variable template
-└── vite.config.js             # Vite config with /api proxy
+│   ├── server.js              # Express API — /api/calculate-rate + /api/start-call
+│   └── .env                   # Server environment variables (not committed)
+├── public/
+│   └── favicon.svg            # Navy + gold "M" favicon
+├── .env                       # Frontend environment variables (not committed)
+└── vite.config.js             # Vite config with /api proxy to localhost:3001
 ```
 
 ---
 
 ## Getting Started
 
-### 1. Clone the repo
-
-```bash
-git clone https://github.com/your-username/mortgage-ai.git
-cd mortgage-ai
-```
-
-### 2. Install dependencies
+### 1. Install dependencies
 
 ```bash
 # Frontend
 npm install
 
 # Backend
-cd server
-npm install
-cd ..
+cd server && npm install && cd ..
 ```
 
-### 3. Set up environment variables
+### 2. Set up environment variables
 
-```bash
-cp .env.example .env
-```
-
-Open `.env` and fill in your Vapi keys:
-
+**Frontend `.env`:**
 ```
 VITE_VAPI_PUBLIC_KEY=your_vapi_public_key
 VITE_VAPI_RATE_AGENT_ID=your_rate_inquiry_agent_id
-VITE_VAPI_SUPPORT_AGENT_ID=your_support_agent_id
+VITE_VAPI_EDUCATIONAL_AGENT_ID=your_educational_agent_id
+VITE_VAPI_FOLLOWUP_AGENT_ID=your_followup_agent_id
+VITE_VAPI_SQUAD_ID=your_squad_id
 ```
 
-Get your keys at [dashboard.vapi.ai](https://dashboard.vapi.ai).
+**`server/.env`:**
+```
+VAPI_API_KEY=your_vapi_private_key
+VAPI_FOLLOWUP_AGENT_ID=your_followup_agent_id
+VAPI_PHONE_NUMBER_ID=your_vapi_phone_number_id
+```
 
-### 4. Run the app
+Get your keys at [vapi.ai](https://vapi.ai).
 
-You need two terminals:
+### 3. Run the app
 
 **Terminal 1 — Backend:**
 ```bash
-cd server
-node server.js
+cd server && node server.js
+# Running on http://localhost:3001
 ```
 
 **Terminal 2 — Frontend:**
 ```bash
 npm run dev
+# Running on http://localhost:5173
 ```
 
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+---
+
+## Vapi Setup
+
+### Agents
+| # | Agent | Role |
+|---|---|---|
+| 1 | Rate Inquiry Agent | Explains the user's specific rate and numbers |
+| 2 | Educational Agent | General mortgage concepts — LTV, APR, PMI, amortization, etc. |
+| 3 | Follow-up Agent | Outbound phone call after the session ends |
+
+### Squads (multi-agent handoff)
+Create a Squad in the Vapi dashboard with:
+- **Member 1:** Rate Inquiry Agent → handoff to Educational Agent when user asks general concepts
+- **Member 2:** Educational Agent → handoff back to Rate Inquiry Agent when user wants to discuss their specific rate
+- Set `contextEngineeringPlan: full` so conversation history is passed at each transfer
 
 ---
 
@@ -105,7 +118,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ### `POST /api/calculate-rate`
 
-**Request body:**
+**Request:**
 ```json
 {
   "loanAmount": 450000,
@@ -124,39 +137,65 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
   "principal": 360000,
   "ltv": 80,
   "totalInterest": 459000,
-  "totalPaid": 819000,
   "years": 30
 }
 ```
 
-**Credit score rates:**
-| Score | Base Rate |
+**Base rates by credit score:**
+| Score | Rate |
 |---|---|
 | Excellent (750+) | 6.5% |
 | Good (700–749) | 7.0% |
 | Fair (650–699) | 7.8% |
 | Poor (<650) | 8.5% |
 
----
+### `POST /api/start-call`
 
-## Roadmap
+Triggers an outbound Vapi phone call via the Follow-up Agent.
 
-- [x] React + Vite project setup
-- [x] Mortgage form UI (Page 1)
-- [x] Voice AI page with orb + waveform (Page 2)
-- [x] Node.js/Express backend API
-- [x] Vapi voice integration
-- [ ] Deploy frontend (Vercel)
-- [ ] Deploy backend (Railway / Render)
+**Request:**
+```json
+{
+  "phoneNumber": "+14155551234",
+  "name": "John Smith",
+  "loanAmount": 450000,
+  "rate": 6.5,
+  "monthlyPayment": 2275
+}
+```
 
 ---
 
 ## Environment Variables
 
+### Frontend (`.env`)
 | Variable | Description |
 |---|---|
-| `VITE_VAPI_PUBLIC_KEY` | Your Vapi public key |
-| `VITE_VAPI_RATE_AGENT_ID` | Vapi assistant ID for the Rate Advisor agent |
-| `VITE_VAPI_SUPPORT_AGENT_ID` | Vapi assistant ID for the Support agent |
+| `VITE_VAPI_PUBLIC_KEY` | Vapi public key |
+| `VITE_VAPI_RATE_AGENT_ID` | Rate Inquiry Agent ID |
+| `VITE_VAPI_EDUCATIONAL_AGENT_ID` | Educational Agent ID |
+| `VITE_VAPI_FOLLOWUP_AGENT_ID` | Follow-up Agent ID |
+| `VITE_VAPI_SQUAD_ID` | Vapi Squad ID for automatic agent handoffs |
 
-> Never commit your `.env` file. It is already in `.gitignore`.
+### Backend (`server/.env`)
+| Variable | Description |
+|---|---|
+| `VAPI_API_KEY` | Vapi private API key (from dashboard → API Keys) |
+| `VAPI_FOLLOWUP_AGENT_ID` | Follow-up Agent ID |
+| `VAPI_PHONE_NUMBER_ID` | Vapi phone number ID for outbound calls |
+
+> Never commit `.env` or `server/.env`. Both are in `.gitignore`.
+
+---
+
+## Roadmap
+
+- [x] React + Vite project setup
+- [x] Mortgage form with instant rate calculation
+- [x] Voice AI page — orb, waveform, transcript
+- [x] Node.js/Express backend (`/api/calculate-rate`, `/api/start-call`)
+- [x] Vapi Squad integration — automatic multi-agent handoffs
+- [x] Follow-up Agent — outbound phone call after session
+- [x] Custom navy/gold favicon
+- [ ] Deploy frontend (Vercel)
+- [ ] Deploy backend (Railway or Render)
