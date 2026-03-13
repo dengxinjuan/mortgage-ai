@@ -1,19 +1,8 @@
 require('dotenv').config()
-const fs = require('fs')
 
 const VAPI_API_KEY          = process.env.VAPI_API_KEY
 const RATE_AGENT_ID         = process.env.VAPI_RATE_AGENT_ID
 const EDUCATIONAL_AGENT_ID  = process.env.VAPI_EDUCATIONAL_AGENT_ID
-const LOG_PATH              = '../.cursor/debug-29703f.log'
-
-function debugLog(message, data, hypothesisId = '') {
-  const entry = JSON.stringify({
-    sessionId: '29703f', location: 'setup-agents.js', message, data,
-    timestamp: Date.now(), hypothesisId,
-  })
-  try { fs.appendFileSync(LOG_PATH, entry + '\n') } catch {}
-  console.log(`[setup] ${message}`, JSON.stringify(data, null, 2))
-}
 
 async function vapiGet(path) {
   const res = await fetch(`https://api.vapi.ai${path}`, {
@@ -92,13 +81,6 @@ async function main() {
   // ── 1. Fetch current Rate Agent config ───────────────────────
   console.log('Fetching Rate Agent config...')
   const rateAgent = await vapiGet(`/assistant/${RATE_AGENT_ID}`)
-  debugLog('Rate Agent current config', {
-    id: rateAgent.id, name: rateAgent.name,
-    modelToolCount: (rateAgent.model?.tools || []).length,
-    modelTools: (rateAgent.model?.tools || []).map(t => ({ type: t.type, destinations: t.destinations })),
-    firstMessage: rateAgent.firstMessage,
-    hasSystemPrompt: !!rateAgent.model?.messages?.find(m => m.role === 'system'),
-  }, 'H-A')
 
   // ── 2. Check if handoff tool already points to Educational Agent ─
   // Tools live inside model.tools, not at the top-level tools field
@@ -111,15 +93,9 @@ async function main() {
   const firstMessageNeedsFix      = !rateAgent.firstMessage?.includes('{{')
   const handoffMissingExtractionPlan = existingHandoff &&
     !existingHandoff.destinations?.[0]?.variableExtractionPlan
-  debugLog('firstMessage + handoff check', {
-    current: rateAgent.firstMessage,
-    firstMessageNeedsFix,
-    handoffMissingExtractionPlan,
-  }, 'H-D')
 
   if (existingHandoff && !firstMessageNeedsFix && !handoffMissingExtractionPlan) {
     console.log('✓ Handoff tool (with variableExtractionPlan) and firstMessage already correctly configured.')
-    debugLog('No changes needed', { existingHandoff }, 'H-A')
   } else {
     // Remove any stale handoff tools, add the correct one (tools live in model.tools)
     const filteredTools = existingTools.filter(t => t.type !== 'handoff')
@@ -152,39 +128,19 @@ async function main() {
       firstMessage: FIXED_FIRST_MESSAGE,
       model:        { ...rateAgent.model, messages: updatedMsgs, tools: updatedTools },
     }
-    debugLog('Patching Rate Agent', {
-      toolCount: updatedTools.length,
-      firstMessage: FIXED_FIRST_MESSAGE,
-      handoffTool: HANDOFF_TOOL,
-    }, 'H-A')
-
     const updated = await vapiPatch(`/assistant/${RATE_AGENT_ID}`, patchBody)
-    debugLog('Rate Agent PATCH response', {
-      id: updated.id, name: updated.name,
-      firstMessage: updated.firstMessage,
-      modelToolCount: (updated.model?.tools || []).length,
-      modelTools: (updated.model?.tools || []).map(t => ({ type: t.type, destinations: t.destinations })),
-    }, 'H-A')
     console.log(`✓ Rate Agent updated — now has ${(updated.model?.tools || []).length} model tool(s).`)
   }
 
   // ── 5. Patch Educational Agent firstMessage ──────────────────
   console.log('\nFetching Educational Agent config...')
   const eduAgent = await vapiGet(`/assistant/${EDUCATIONAL_AGENT_ID}`)
-  debugLog('Educational Agent current config', {
-    id: eduAgent.id, name: eduAgent.name,
-    firstMessage: eduAgent.firstMessage,
-  }, 'H-A,H-B')
-
   const eduFirstMessageNeedsFix = !eduAgent.firstMessage?.includes('{{')
   if (eduFirstMessageNeedsFix) {
     console.log(`Patching Educational Agent firstMessage (current uses wrong syntax: "${eduAgent.firstMessage?.slice(0, 60)}...")`)
     const updatedEdu = await vapiPatch(`/assistant/${EDUCATIONAL_AGENT_ID}`, {
       firstMessage: EDU_FIXED_FIRST_MESSAGE,
     })
-    debugLog('Educational Agent PATCH response', {
-      firstMessage: updatedEdu.firstMessage,
-    }, 'H-A,H-B')
     console.log(`✓ Educational Agent firstMessage fixed: "${updatedEdu.firstMessage}"`)
   } else {
     console.log(`✓ Educational Agent firstMessage already uses correct syntax — skipping.`)
@@ -197,6 +153,5 @@ async function main() {
 
 main().catch(err => {
   console.error('Setup failed:', err.message)
-  debugLog('Setup failed', { error: err.message }, 'H-A')
   process.exit(1)
 })

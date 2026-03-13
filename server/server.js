@@ -73,7 +73,7 @@ app.post('/api/calculate-rate', (req, res) => {
   const totalPaid  = Math.round(monthly * years * 12)
   const totalInterest = totalPaid - principal
 
-  res.json({
+  res.status(200).json({
     rate,
     loanAmount:     loan,
     downPayment:    down,
@@ -103,7 +103,7 @@ app.post('/api/start-call', async (req, res) => {
   const PHONE_ID       = process.env.VAPI_PHONE_NUMBER_ID
 
   if (!VAPI_API_KEY || !FOLLOWUP_ID) {
-    return res.status(500).json({ error: 'VAPI_API_KEY or VAPI_FOLLOWUP_AGENT_ID not configured on server.' })
+    return res.status(503).json({ error: 'VAPI_API_KEY or VAPI_FOLLOWUP_AGENT_ID not configured on server.' })
   }
 
   try {
@@ -135,17 +135,84 @@ app.post('/api/start-call', async (req, res) => {
     if (!response.ok) {
       console.error('Vapi error response:', JSON.stringify(data, null, 2))
       const msg = data?.message || data?.error || JSON.stringify(data)
-      return res.status(response.status).json({ error: msg })
+      // 4xx from Vapi → client error (400–499), 5xx → upstream failure (502)
+      const code = response.status >= 500 ? 502 : response.status
+      return res.status(code).json({ error: msg })
     }
-    res.json({ success: true, callId: data.id })
+    res.status(200).json({ success: true, callId: data.id })
   } catch (err) {
     console.error('start-call error:', err)
     res.status(500).json({ error: err.message || 'Internal server error.' })
   }
 })
 
+// ── POST /api/vapi-tool ────────────────────────────────────
+// Called by Vapi mid-conversation when Rate Inquiry Agent needs to
+// recalculate rates for "what if" questions. Returns 200 + results[] so Vapi does not treat as rejected.
+app.post('/api/vapi-tool', (req, res) => {
+  try {
+    if (!req.body || typeof req.body !== 'object') {
+      return res.status(400).json({ error: 'Request body must be JSON with a message.' })
+    }
+    const msg = req.body.message
+    if (!msg || !msg.toolCallList || !Array.isArray(msg.toolCallList)) {
+      return res.status(400).json({ error: 'Request must include message.toolCallList.' })
+    }
+
+    const list = msg.toolCallList
+    const toolCall = list[0]
+    const func = toolCall?.function
+    const toolWithList = msg?.toolWithToolCallList
+    const firstWith = toolWithList?.[0]
+    const resolvedCall = toolCall || firstWith?.toolCall
+    const toolName = (toolCall?.name ?? firstWith?.name ?? func?.name) || 'recalculate'
+
+    if (!resolvedCall || !resolvedCall.id) {
+      console.log('[vapi-tool] missing toolCall id, returning fallback')
+      return res.status(200).json({ results: [{ toolCallId: 'unknown', result: 'I could not process that request. Please share your loan amount, credit score, and loan type to get a rate.' }] })
+    }
+
+    const toolCallId = resolvedCall.id
+    const rawArgs = resolvedCall.arguments ?? resolvedCall.function?.arguments ?? resolvedCall.parameters
+    let args
+    try {
+      args = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : (rawArgs || {})
+    } catch (e) {
+      console.log('[vapi-tool] parse error', e.message)
+      return res.status(200).json({ results: [{ toolCallId, result: 'Invalid arguments for rate calculation. Please provide loan amount, credit score, and loan type.' }] })
+    }
+
+    const { loanAmount, creditScore, loanType, downPayment } = args
+    console.log('[vapi-tool] called', { toolCallId, loanAmount, creditScore, loanType, downPayment })
+
+    if (!loanAmount || !creditScore || !loanType) {
+      return res.status(200).json({
+        results: [{ toolCallId, result: 'I need the loan amount, credit score, and loan type to calculate a rate.' }]
+      })
+    }
+
+    const base    = BASE_RATES[creditScore] ?? 7.0
+    const loanAdj = LOAN_TYPE_ADJUSTMENTS[loanType] ?? 0
+    const rate    = Math.round((base + loanAdj) * 100) / 100
+
+    const principal    = parseFloat(loanAmount) - (parseFloat(downPayment) || 0)
+    const years        = loanType === '15yr-fixed' ? 15 : 30
+    const monthlyPayment = Math.round(calcMonthly(principal, rate, years))
+
+    const monthlyFormatted = monthlyPayment.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
+    const result = `Rate ${rate}%, monthly payment ${monthlyFormatted}.`
+    console.log('[vapi-tool] success', result.slice(0, 60) + '…')
+    return res.status(200).json({
+      results: [{ toolCallId, result }]
+    })
+  } catch (err) {
+    console.error('[vapi-tool] unexpected error', err)
+    res.status(500).json({ error: 'Internal server error.' })
+  }
+})
+
 // ── Health check ───────────────────────────────────────────
-app.get('/api/health', (_req, res) => res.json({ status: 'ok' }))
+app.get('/api/health', (_req, res) => res.status(200).json({ status: 'ok' }))
 
 app.listen(PORT, () => {
   console.log(`Mortgage API running on http://localhost:${PORT}`)

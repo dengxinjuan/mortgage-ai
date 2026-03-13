@@ -112,6 +112,48 @@ Create a Squad in the Vapi dashboard with:
 - **Member 2:** Educational Agent → handoff back to Rate Inquiry Agent when user wants to discuss their specific rate
 - Set `contextEngineeringPlan: full` so conversation history is passed at each transfer
 
+### Custom tool: recalculate (Rate Agent)
+The Rate Inquiry Agent can call a **custom tool** to recalculate rates for “what if” questions (e.g. different down payment or loan type). The backend handles this at `POST /api/vapi-tool`.
+
+**For the recalculate tool to work, Vapi must be able to reach your backend:**
+- **Local dev:** Expose your server with a tunnel (e.g. [ngrok](https://ngrok.com)): `ngrok http 3001`, then in the Vapi dashboard set the tool’s **Server URL** to `https://YOUR_NGROK_URL/api/vapi-tool` (same for any other tunnel).
+- **Production:** Set the tool’s **Server URL** to your deployed backend, e.g. `https://your-api.example.com/api/vapi-tool`.
+
+If the Server URL is wrong or points to localhost, Vapi will never call your server and the recalculate tool will not work.
+
+### Testing the custom tool
+
+1. **Start the backend** (Terminal 1):
+   ```bash
+   cd server && npm start
+   ```
+   You should see: `Mortgage API running on http://localhost:3001`.
+
+2. **Expose the server** (Terminal 2). Use one of:
+   - **ngrok:** `ngrok http 3001` → use the HTTPS URL it prints.
+   - **localtunnel:** `npx localtunnel --port 3001 --subdomain mortgage-ai-tool` → use `https://mortgage-ai-tool.loca.lt`.
+
+3. **Set the tool Server URL in Vapi:**
+   - [Vapi Dashboard](https://dashboard.vapi.ai) → **Tools** → open your recalculate/calculate_rate tool → **Server Settings**.
+   - Set **Server URL** to `https://YOUR_TUNNEL_URL/api/vapi-tool` (e.g. `https://abc123.ngrok-free.dev/api/vapi-tool`).
+   - Save. Leave **Timeout** at 20–60 seconds.
+
+4. **Run a test call:**
+   - In the dashboard, go to **Assistants** → open the **Rate Inquiry** agent (or the Squad that uses it).
+   - Use **Test** / **Try it** to start a web call.
+   - In the call: give loan details (amount, credit score, loan type) so the agent has a rate, then ask a “what if” question (e.g. *“What if I put 30% down?”* or *“What’s my rate for a 15-year fixed?”*).
+   - The agent should say it’s recalculating and then read the new rate and monthly payment.
+
+5. **Verify:** In the terminal where `npm start` is running, you should see `[vapi-tool] called` and `[vapi-tool] success` when the tool runs. If you don’t, check the Server URL and that the tunnel is still running.
+
+**Optional — test the endpoint with curl** (with server and tunnel running):
+```bash
+curl -X POST https://YOUR_TUNNEL_URL/api/vapi-tool \
+  -H "Content-Type: application/json" \
+  -d '{"message":{"type":"tool-calls","toolCallList":[{"id":"test-1","name":"calculate_rate","arguments":{"loanAmount":300000,"downPayment":60000,"creditScore":"good","loanType":"30yr-fixed"}}]}}'
+```
+You should get a JSON response with `results[].result` containing the rate and monthly payment.
+
 ---
 
 ## API
