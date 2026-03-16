@@ -17,9 +17,9 @@ const LOAN_TYPE_LABELS = {
 }
 
 export default function MortgageForm({ onSubmit }) {
-  const [form, setForm]       = useState(INITIAL)
-  const [result, setResult]   = useState(null)
-  const [errors, setErrors]   = useState({})
+  const [form, setForm] = useState(INITIAL)
+  const [result, setResult] = useState(null)
+  const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(false)
   const [apiError, setApiError] = useState('')
 
@@ -50,14 +50,15 @@ export default function MortgageForm({ onSubmit }) {
     setApiError('')
 
     try {
-      const res = await fetch('/api/calculate-rate', {
+      const apiBase = import.meta.env.VITE_API_URL || ''
+      const res = await fetch(`${apiBase}/api/calculate-rate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          loanAmount:   +form.loanAmount,
-          downPayment:  +form.downPayment,
-          creditScore:  form.creditScore,
-          loanType:     form.loanType,
+          loanAmount: +form.loanAmount,
+          downPayment: +form.downPayment,
+          creditScore: form.creditScore,
+          loanType: form.loanType,
           propertyType: form.propertyType,
         }),
       })
@@ -167,9 +168,9 @@ export default function MortgageForm({ onSubmit }) {
               <div className="credit-grid">
                 {[
                   { v: 'excellent', label: 'Excellent', sub: '750+' },
-                  { v: 'good',      label: 'Good',      sub: '700–749' },
-                  { v: 'fair',      label: 'Fair',       sub: '650–699' },
-                  { v: 'poor',      label: 'Poor',       sub: '<650' },
+                  { v: 'good', label: 'Good', sub: '700–749' },
+                  { v: 'fair', label: 'Fair', sub: '650–699' },
+                  { v: 'poor', label: 'Poor', sub: '<650' },
                 ].map(opt => (
                   <button key={opt.v} type="button"
                     className={`credit-btn ${form.creditScore === opt.v ? 'selected' : 'unselected'}`}
@@ -225,12 +226,12 @@ export default function MortgageForm({ onSubmit }) {
               </div>
               <div className="rate-rows">
                 {[
-                  { label: 'Loan Amount',        value: `$${(+result.loan).toLocaleString()}` },
-                  { label: 'Down Payment',        value: `$${(+result.down).toLocaleString()}` },
-                  { label: 'Principal',           value: `$${(+result.principal).toLocaleString()}` },
-                  { label: 'Monthly Payment',     value: `$${(+result.monthly).toLocaleString()}` },
+                  { label: 'Loan Amount', value: `$${(+result.loan).toLocaleString()}` },
+                  { label: 'Down Payment', value: `$${(+result.down).toLocaleString()}` },
+                  { label: 'Principal', value: `$${(+result.principal).toLocaleString()}` },
+                  { label: 'Monthly Payment', value: `$${(+result.monthly).toLocaleString()}` },
                   { label: 'Loan-to-Value (LTV)', value: `${result.ltv}%` },
-                  { label: 'Total Interest',      value: `$${(+result.totalInterest).toLocaleString()}` },
+                  { label: 'Total Interest', value: `$${(+result.totalInterest).toLocaleString()}` },
                 ].map(r => (
                   <div className="rate-row" key={r.label}>
                     <span className="rate-row-label">{r.label}</span>
@@ -250,9 +251,9 @@ export default function MortgageForm({ onSubmit }) {
           {/* Trust badges */}
           <div className="trust-grid">
             {[
-              { icon: '🔒', title: 'Secure',     desc: 'Bank-level encryption' },
-              { icon: '⚡', title: 'Instant',    desc: 'Results in seconds'    },
-              { icon: '🤖', title: 'AI-Powered', desc: 'Smart rate matching'   },
+              { icon: '🔒', title: 'Secure', desc: 'Bank-level encryption' },
+              { icon: '⚡', title: 'Instant', desc: 'Results in seconds' },
+              { icon: '🤖', title: 'AI-Powered', desc: 'Smart rate matching' },
             ].map(b => (
               <div className="trust-badge" key={b.title}>
                 <div className="trust-icon">{b.icon}</div>

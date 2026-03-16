@@ -1,41 +1,41 @@
 import { useEffect, useRef, useState } from 'react'
 import Vapi from '@vapi-ai/web'
 
-const VAPI_PUBLIC_KEY       = import.meta.env.VITE_VAPI_PUBLIC_KEY          || ''
-const RATE_AGENT_ID         = import.meta.env.VITE_VAPI_RATE_AGENT_ID         || ''
-const EDUCATIONAL_AGENT_ID  = import.meta.env.VITE_VAPI_EDUCATIONAL_AGENT_ID  || ''
-const FOLLOWUP_AGENT_ID     = import.meta.env.VITE_VAPI_FOLLOWUP_AGENT_ID     || ''
-const SQUAD_ID              = import.meta.env.VITE_VAPI_SQUAD_ID               || ''
+const VAPI_PUBLIC_KEY = import.meta.env.VITE_VAPI_PUBLIC_KEY || ''
+const RATE_AGENT_ID = import.meta.env.VITE_VAPI_RATE_AGENT_ID || ''
+const EDUCATIONAL_AGENT_ID = import.meta.env.VITE_VAPI_EDUCATIONAL_AGENT_ID || ''
+const FOLLOWUP_AGENT_ID = import.meta.env.VITE_VAPI_FOLLOWUP_AGENT_ID || ''
+const SQUAD_ID = import.meta.env.VITE_VAPI_SQUAD_ID || ''
 
 const LOAN_TYPE_LABELS = {
   '30yr-fixed': '30-Year Fixed',
   '15yr-fixed': '15-Year Fixed',
-  variable:     'Variable Rate',
+  variable: 'Variable Rate',
 }
 
 const CREDIT_LABELS = {
   excellent: 'Excellent (750+)',
-  good:      'Good (700–749)',
-  fair:      'Fair (650–699)',
-  poor:      'Poor (<650)',
+  good: 'Good (700–749)',
+  fair: 'Fair (650–699)',
+  poor: 'Poor (<650)',
 }
 
 export default function VoicePage({ userData, onBack }) {
-  const vapiRef        = useRef(null)
-  const logEndRef      = useRef(null)
+  const vapiRef = useRef(null)
+  const logEndRef = useRef(null)
 
-  const [callStatus, setCallStatus]       = useState('idle')   // idle | connecting | active | ended
-  const [isMuted, setIsMuted]             = useState(false)
-  const [isSpeaking, setIsSpeaking]       = useState(false)
-  const [latestLine, setLatestLine]       = useState('')
-  const [transcript, setTranscript]       = useState([])
-  const [activeAgent, setActiveAgent]     = useState('rate')
-  const [callError, setCallError]         = useState('')
-  const [showFollowUp, setShowFollowUp]   = useState(false)
-  const [phoneNumber, setPhoneNumber]     = useState('+1')
+  const [callStatus, setCallStatus] = useState('idle')   // idle | connecting | active | ended
+  const [isMuted, setIsMuted] = useState(false)
+  const [isSpeaking, setIsSpeaking] = useState(false)
+  const [latestLine, setLatestLine] = useState('')
+  const [transcript, setTranscript] = useState([])
+  const [activeAgent, setActiveAgent] = useState('rate')
+  const [callError, setCallError] = useState('')
+  const [showFollowUp, setShowFollowUp] = useState(false)
+  const [phoneNumber, setPhoneNumber] = useState('+1')
   const [callRequested, setCallRequested] = useState(false) // 'idle' | 'sending' | 'sent' | 'error'
   const [callReqStatus, setCallReqStatus] = useState('idle')
-  const [callReqError, setCallReqError]   = useState('')
+  const [callReqError, setCallReqError] = useState('')
 
   // Init Vapi once
   useEffect(() => {
@@ -43,15 +43,15 @@ export default function VoicePage({ userData, onBack }) {
     const vapi = new Vapi(VAPI_PUBLIC_KEY)
     vapiRef.current = vapi
 
-    vapi.on('call-start',   () => setCallStatus('active'))
-    vapi.on('call-end',     () => {
+    vapi.on('call-start', () => setCallStatus('active'))
+    vapi.on('call-end', () => {
       setCallStatus('ended')
       setIsSpeaking(false)
       setShowFollowUp(true)
     })
     vapi.on('speech-start', () => setIsSpeaking(true))
-    vapi.on('speech-end',   () => setIsSpeaking(false))
-    vapi.on('error',        (e) => {
+    vapi.on('speech-end', () => setIsSpeaking(false))
+    vapi.on('error', (e) => {
       console.error('Vapi error:', e)
       setCallError(e?.message || JSON.stringify(e) || 'Unknown error')
       setCallStatus('ended')
@@ -66,7 +66,7 @@ export default function VoicePage({ userData, onBack }) {
 
       if (msg.type === 'assistant.started') {
         const id = msg.newAssistant?.id || ''
-        if (id === RATE_AGENT_ID)        setActiveAgent('rate')
+        if (id === RATE_AGENT_ID) setActiveAgent('rate')
         if (id === EDUCATIONAL_AGENT_ID) setActiveAgent('educational')
       }
     })
@@ -96,13 +96,13 @@ export default function VoicePage({ userData, onBack }) {
       undefined,
       {
         variableValues: {
-          name:           userData?.name || '',
-          loanAmount:     userData?.loan || 0,
-          downPayment:    userData?.down || 0,
-          rate:           userData?.rate || 0,
+          name: userData?.name || '',
+          loanAmount: userData?.loan || 0,
+          downPayment: userData?.down || 0,
+          rate: userData?.rate || 0,
           monthlyPayment: userData?.monthly || 0,
-          loanType:       LOAN_TYPE_LABELS[userData?.loanType] || '',
-          creditScore:    creditLabel,
+          loanType: LOAN_TYPE_LABELS[userData?.loanType] || '',
+          creditScore: creditLabel,
         },
       },
       SQUAD_ID,
@@ -127,17 +127,18 @@ export default function VoicePage({ userData, onBack }) {
     setCallReqStatus('sending')
     setCallReqError('')
     try {
-      const res = await fetch('/api/start-call', {
-        method:  'POST',
+      const apiBase = import.meta.env.VITE_API_URL || ''
+      const res = await fetch(`${apiBase}/api/start-call`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          phoneNumber:    phoneNumber.trim(),
-          name:           userData?.name,
-          loanAmount:     userData?.loan,
-          downPayment:    userData?.down,
-          loanType:       LOAN_TYPE_LABELS[userData?.loanType] || '',
-          creditScore:    CREDIT_LABELS[userData?.creditScore] || '',
-          rate:           userData?.rate,
+          phoneNumber: phoneNumber.trim(),
+          name: userData?.name,
+          loanAmount: userData?.loan,
+          downPayment: userData?.down,
+          loanType: LOAN_TYPE_LABELS[userData?.loanType] || '',
+          creditScore: CREDIT_LABELS[userData?.creditScore] || '',
+          rate: userData?.rate,
           monthlyPayment: userData?.monthly,
         }),
       })
@@ -154,10 +155,10 @@ export default function VoicePage({ userData, onBack }) {
   }
 
   const statusLabel = {
-    idle:       'Ready',
+    idle: 'Ready',
     connecting: 'Connecting…',
-    active:     'Live',
-    ended:      'Call Ended',
+    active: 'Live',
+    ended: 'Call Ended',
   }
 
   return (
@@ -203,11 +204,11 @@ export default function VoicePage({ userData, onBack }) {
               <span className="summary-rate-pct">%</span>
             </div>
             {[
-              { label: 'Loan Amount',    value: userData?.loan    ? `$${(+userData.loan).toLocaleString()}`    : '—' },
-              { label: 'Down Payment',   value: userData?.down    ? `$${(+userData.down).toLocaleString()}`    : '—' },
-              { label: 'Monthly Est.',   value: userData?.monthly ? `$${(+userData.monthly).toLocaleString()}` : '—' },
-              { label: 'Loan Type',      value: LOAN_TYPE_LABELS[userData?.loanType] || '—' },
-              { label: 'Credit Score',   value: CREDIT_LABELS[userData?.creditScore]   || '—' },
+              { label: 'Loan Amount', value: userData?.loan ? `$${(+userData.loan).toLocaleString()}` : '—' },
+              { label: 'Down Payment', value: userData?.down ? `$${(+userData.down).toLocaleString()}` : '—' },
+              { label: 'Monthly Est.', value: userData?.monthly ? `$${(+userData.monthly).toLocaleString()}` : '—' },
+              { label: 'Loan Type', value: LOAN_TYPE_LABELS[userData?.loanType] || '—' },
+              { label: 'Credit Score', value: CREDIT_LABELS[userData?.creditScore] || '—' },
             ].map(r => (
               <div className="summary-row" key={r.label}>
                 <span className="summary-label">{r.label}</span>
@@ -297,11 +298,11 @@ export default function VoicePage({ userData, onBack }) {
             {latestLine
               ? <p className="transcript-bubble-text">"{latestLine}"</p>
               : <p className="transcript-bubble-placeholder">
-                  {callStatus === 'idle'    ? 'AI response will appear here…'  : ''}
-                  {callStatus === 'connecting' ? 'Connecting to AI advisor…'    : ''}
-                  {callStatus === 'active'  ? 'Listening…'                      : ''}
-                  {callStatus === 'ended' && !showFollowUp ? 'Call ended. Start a new call to continue.' : ''}
-                </p>
+                {callStatus === 'idle' ? 'AI response will appear here…' : ''}
+                {callStatus === 'connecting' ? 'Connecting to AI advisor…' : ''}
+                {callStatus === 'active' ? 'Listening…' : ''}
+                {callStatus === 'ended' && !showFollowUp ? 'Call ended. Start a new call to continue.' : ''}
+              </p>
             }
           </div>
 
@@ -358,7 +359,7 @@ export default function VoicePage({ userData, onBack }) {
             <p className="sidebar-section-title">Agent</p>
             <div className="agent-switch">
               {[
-                { id: 'rate',        icon: '📊', name: 'Rate Advisor',       desc: 'Explains rates & options'   },
+                { id: 'rate', icon: '📊', name: 'Rate Advisor', desc: 'Explains rates & options' },
                 { id: 'educational', icon: '🎓', name: 'Educational Agent', desc: 'General mortgage concepts' },
               ].map(a => (
                 <div

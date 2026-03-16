@@ -1,32 +1,33 @@
 require('dotenv').config()
 const express = require('express')
-const cors    = require('cors')
+const cors = require('cors')
 
-const app  = express()
+const app = express()
 const PORT = process.env.PORT || 3001
 
-app.use(cors({ origin: 'http://localhost:5173' }))
+const corsOrigin = process.env.CORS_ORIGIN || 'http://localhost:5173'
+app.use(cors({ origin: corsOrigin }))
 app.use(express.json())
 
 // ── Rate tables ────────────────────────────────────────────
 const BASE_RATES = {
   excellent: 6.5,
-  good:      7.0,
-  fair:      7.8,
-  poor:      8.5,
+  good: 7.0,
+  fair: 7.8,
+  poor: 8.5,
 }
 
 const LOAN_TYPE_ADJUSTMENTS = {
   '30yr-fixed': 0,
   '15yr-fixed': -0.5,  // 15yr is typically lower
-  variable:     -0.75, // variable starts lower
+  variable: -0.75, // variable starts lower
 }
 
 const PROPERTY_TYPE_ADJUSTMENTS = {
   'single-family': 0,
-  townhouse:        0.1,
-  condo:            0.2,
-  'multi-family':   0.3,
+  townhouse: 0.1,
+  condo: 0.2,
+  'multi-family': 0.3,
 }
 
 // ── Helpers ────────────────────────────────────────────────
@@ -61,22 +62,22 @@ app.post('/api/calculate-rate', (req, res) => {
   }
 
   // Rate calculation
-  const base       = BASE_RATES[creditScore]      ?? 7.0
-  const loanAdj    = LOAN_TYPE_ADJUSTMENTS[loanType]      ?? 0
-  const propAdj    = PROPERTY_TYPE_ADJUSTMENTS[propertyType] ?? 0
-  const rate       = Math.round((base + loanAdj + propAdj) * 100) / 100
+  const base = BASE_RATES[creditScore] ?? 7.0
+  const loanAdj = LOAN_TYPE_ADJUSTMENTS[loanType] ?? 0
+  const propAdj = PROPERTY_TYPE_ADJUSTMENTS[propertyType] ?? 0
+  const rate = Math.round((base + loanAdj + propAdj) * 100) / 100
 
-  const principal  = loan - down
-  const years      = loanType === '15yr-fixed' ? 15 : 30
-  const monthly    = Math.round(calcMonthly(principal, rate, years))
-  const ltv        = Math.round(calcLTV(loan, down))
-  const totalPaid  = Math.round(monthly * years * 12)
+  const principal = loan - down
+  const years = loanType === '15yr-fixed' ? 15 : 30
+  const monthly = Math.round(calcMonthly(principal, rate, years))
+  const ltv = Math.round(calcLTV(loan, down))
+  const totalPaid = Math.round(monthly * years * 12)
   const totalInterest = totalPaid - principal
 
   res.status(200).json({
     rate,
-    loanAmount:     loan,
-    downPayment:    down,
+    loanAmount: loan,
+    downPayment: down,
     principal,
     loanType,
     creditScore,
@@ -98,9 +99,9 @@ app.post('/api/start-call', async (req, res) => {
     return res.status(400).json({ error: 'phoneNumber is required.' })
   }
 
-  const VAPI_API_KEY   = process.env.VAPI_API_KEY
-  const FOLLOWUP_ID    = process.env.VAPI_FOLLOWUP_AGENT_ID
-  const PHONE_ID       = process.env.VAPI_PHONE_NUMBER_ID
+  const VAPI_API_KEY = process.env.VAPI_API_KEY
+  const FOLLOWUP_ID = process.env.VAPI_FOLLOWUP_AGENT_ID
+  const PHONE_ID = process.env.VAPI_PHONE_NUMBER_ID
 
   if (!VAPI_API_KEY || !FOLLOWUP_ID) {
     return res.status(503).json({ error: 'VAPI_API_KEY or VAPI_FOLLOWUP_AGENT_ID not configured on server.' })
@@ -108,23 +109,23 @@ app.post('/api/start-call', async (req, res) => {
 
   try {
     const response = await fetch('https://api.vapi.ai/call/phone', {
-      method:  'POST',
+      method: 'POST',
       headers: {
         'Authorization': `Bearer ${VAPI_API_KEY}`,
-        'Content-Type':  'application/json',
+        'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        assistantId:   FOLLOWUP_ID,
+        assistantId: FOLLOWUP_ID,
         phoneNumberId: PHONE_ID,
         customer: { number: phoneNumber },
         assistantOverrides: {
           variableValues: {
-            name:           name          || '',
-            loanAmount:     loanAmount    || 0,
-            downPayment:    downPayment   || 0,
-            loanType:       loanType      || '',
-            creditScore:    creditScore   || '',
-            rate:           rate          || 0,
+            name: name || '',
+            loanAmount: loanAmount || 0,
+            downPayment: downPayment || 0,
+            loanType: loanType || '',
+            creditScore: creditScore || '',
+            rate: rate || 0,
             monthlyPayment: monthlyPayment || 0,
           },
         },
@@ -191,12 +192,12 @@ app.post('/api/vapi-tool', (req, res) => {
       })
     }
 
-    const base    = BASE_RATES[creditScore] ?? 7.0
+    const base = BASE_RATES[creditScore] ?? 7.0
     const loanAdj = LOAN_TYPE_ADJUSTMENTS[loanType] ?? 0
-    const rate    = Math.round((base + loanAdj) * 100) / 100
+    const rate = Math.round((base + loanAdj) * 100) / 100
 
-    const principal    = parseFloat(loanAmount) - (parseFloat(downPayment) || 0)
-    const years        = loanType === '15yr-fixed' ? 15 : 30
+    const principal = parseFloat(loanAmount) - (parseFloat(downPayment) || 0)
+    const years = loanType === '15yr-fixed' ? 15 : 30
     const monthlyPayment = Math.round(calcMonthly(principal, rate, years))
 
     const monthlyFormatted = monthlyPayment.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 })
