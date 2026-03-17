@@ -1,6 +1,6 @@
-const { setCorsHeaders, handleOptions } = require('./_lib/cors')
+import { setCorsHeaders, handleOptions } from './_lib/cors.js'
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   setCorsHeaders(res)
   if (req.method === 'OPTIONS') return handleOptions(res)
   if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' })

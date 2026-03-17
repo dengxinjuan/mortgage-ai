@@ -1,12 +1,8 @@
-const { setCorsHeaders, handleOptions } = require('./_lib/cors')
-const { getBody } = require('./_lib/parseBody')
-const {
-  BASE_RATES,
-  LOAN_TYPE_ADJUSTMENTS,
-  calcMonthly,
-} = require('./_lib/rates')
+import { setCorsHeaders, handleOptions } from './_lib/cors.js'
+import { getBody } from './_lib/parseBody.js'
+import { BASE_RATES, LOAN_TYPE_ADJUSTMENTS, calcMonthly } from './_lib/rates.js'
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   setCorsHeaders(res)
   if (req.method === 'OPTIONS') return handleOptions(res)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
