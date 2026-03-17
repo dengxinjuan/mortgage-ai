@@ -1,12 +1,14 @@
 const { setCorsHeaders, handleOptions } = require('./_lib/cors')
+const { getBody } = require('./_lib/parseBody')
 
 module.exports = async function handler(req, res) {
   setCorsHeaders(res)
   if (req.method === 'OPTIONS') return handleOptions(res)
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
+  const body = await getBody(req)
   const { phoneNumber, name, loanAmount, downPayment, loanType, creditScore, rate, monthlyPayment } =
-    req.body || {}
+    body
 
   if (!phoneNumber) {
     return res.status(400).json({ error: 'phoneNumber is required.' })

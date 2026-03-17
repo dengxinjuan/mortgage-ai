@@ -1,4 +1,5 @@
 const { setCorsHeaders, handleOptions } = require('./_lib/cors')
+const { getBody } = require('./_lib/parseBody')
 const {
   BASE_RATES,
   LOAN_TYPE_ADJUSTMENTS,
@@ -11,7 +12,7 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
   try {
-    const body = req.body
+    const body = await getBody(req)
     if (!body || typeof body !== 'object') {
       return res.status(400).json({ error: 'Request body must be JSON with a message.' })
     }
